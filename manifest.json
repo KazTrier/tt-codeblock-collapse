@@ -1,0 +1,11 @@
+{
+    "display_name": "前端HTML代码块折叠",
+    "loading_order": 200,
+    "requires": [],
+    "optional": [],
+    "js": "index.js",
+    "author": "user",
+    "version": "1.0.0",
+    "homePage": "",
+    "description": "在聊天中默认把含 <!DOCTYPE html>/<html>/<head>/<body>/<script> 的前端 HTML 代码块折叠为一行，避免渲染前/被 JSR 接管前显示一大坨源码。"
+}
