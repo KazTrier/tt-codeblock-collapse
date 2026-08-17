@@ -48,14 +48,20 @@ function processMesTexts() {
     const now = Date.now();
     if (now - lastFold < 80) return;
     lastFold = now;
-    document.querySelectorAll('#chat .mes .mes_text').forEach(foldMesText);
+    // 覆盖两类容器：
+    //  1) 消息 .mes_text（#chat 内）
+    //  2) 流式显示 .streaming-display-text-content —— 它也带 .mes_text 类，
+    //     且挂在 document.body（或打开的 dialog）下、不在 #chat 内；同样走
+    //     messageFormatting，会包含前端 <pre>，不折叠就会在输出时闪出源码。
+    document.querySelectorAll('.mes_text, .streaming-display-text-content').forEach(foldMesText);
 }
 
 function hookChat() {
-    const chat = document.querySelector('#chat');
-    if (!chat) return false;
+    // 观察整棵文档：既覆盖 #chat 内消息，也覆盖挂载在 body/dialog 下的流式显示
+    const root = document.documentElement;
+    if (!root) return false;
     const mo = new MutationObserver(() => processMesTexts());
-    mo.observe(chat, { childList: true, subtree: true });
+    mo.observe(root, { childList: true, subtree: true });
     processMesTexts();
     return true;
 }
