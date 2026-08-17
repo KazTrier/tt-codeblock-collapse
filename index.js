@@ -1,10 +1,11 @@
 // 前端HTML代码块折叠 —— 独立扩展（不动 TauriTavern 源码）
 // 目标：在聊天 .mes_text 里，把含 <!DOCTYPE html>/<html>/<head>/<body>/<script> 的
-//       “前端 HTML 代码块”默认折叠成一行，避免在 JS-Slash-Runner 等接管前甩一大坨源码。
+//       “前端 HTML 代码块”默认折叠（隐藏），避免在 JS-Slash-Runner 等接管前甩一大坨源码。
 // 特点：
-//   - 只隐藏/显示 <pre>，不包装、不移动任何节点，尽量不干扰 JSR/LWB 的 iframe 接管。
-//   - 幂等：已标记的 <pre> 不重复处理；消息被虚拟化重建后会自动重新折叠。
-//   - 用 MutationObserver 观察 #chat，不依赖渲染事件时序，虚拟化重建也覆盖。
+//   - 只隐藏 <pre>（display:none），不包装、不移动任何节点，尽量不干扰 JSR/LWB 的 iframe 接管。
+//   - 无防抖、无条件隐藏：流式输出每 token 都会重建 .mes_text（含新的<pre>），
+//     立即同步折叠才能消除“闪出源码”的竞态窗口。
+//   - 用 MutationObserver 观察整棵文档，不依赖渲染事件时序，虚拟化重建也覆盖。
 
 // 判定：与 JSR / TT 内部 isFrontendCode 思路一致
 function isFrontend(text) {
@@ -18,10 +19,6 @@ function isFrontend(text) {
         || t.indexOf('</html>') >= 0;
 }
 
-function isAlreadyFolded(pre) {
-    return pre.getAttribute('data-tt-fold') === '1';
-}
-
 function markFolded(pre) {
     pre.setAttribute('data-tt-fold', '1');
     pre.style.display = 'none';
@@ -33,26 +30,20 @@ function foldMesText(txtElement) {
     const pres = txtElement.querySelectorAll('pre');
     pres.forEach((pre) => {
         if (pre.closest('.tt-fold-control')) return;         // 别碰我们自己加的控件
-        if (isAlreadyFolded(pre)) return;
         const code = pre.querySelector('code');
         const text = (code && code.textContent) || pre.textContent || '';
         if (isFrontend(text)) {
+            // 每次都强制隐藏（幂等）。不缓存“已折叠”状态做短路，因为流式
+            // 每 token 都会 replaceChildren 重建 <pre>，且 fadeIn 路径用 morphdom
+            // 可能重置 style；无条件 display:none 才能覆盖这些重建，消除“闪出”。
             markFolded(pre);
         }
     });
 }
 
-let lastFold = 0;
 function processMesTexts() {
-    // 防抖，合并同一批渲染事件
-    const now = Date.now();
-    if (now - lastFold < 80) return;
-    lastFold = now;
-    // 覆盖两类容器：
-    //  1) 消息 .mes_text（#chat 内）
-    //  2) 流式显示 .streaming-display-text-content —— 它也带 .mes_text 类，
-    //     且挂在 document.body（或打开的 dialog）下、不在 #chat 内；同样走
-    //     messageFormatting，会包含前端 <pre>，不折叠就会在输出时闪出源码。
+    // 不做防抖：流式输出每 token 都会整体重建 .mes_text（含新的、未折叠的 <pre>），
+    // 防抖只会让折叠滞后一帧，造成源码闪现。改为每次 mutation 立即折叠。
     document.querySelectorAll('.mes_text, .streaming-display-text-content').forEach(foldMesText);
 }
 
